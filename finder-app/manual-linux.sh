@@ -52,10 +52,6 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "done with kernel build"
 fi
 
-echo "Adding the Image in outdir"
-cp ${OUTDIR}/linux-stable/arch/arm64/boot/Image ${OUTDIR}/Image
-echo "Kernel Image copied to ${OUTDIR}/Image"
-
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
 if [ -d "${OUTDIR}/rootfs" ]
@@ -131,7 +127,7 @@ echo "Finder files copied"
 
 # Chown the root directory
 echo "Taking ownership of ${OUTDIR}/rootfs with user $USER"
-sudo chown -R "$USER":"$USER" ${OUTDIR}/rootfs
+chown -R "$USER":"$USER" ${OUTDIR}/rootfs
 echo "Ownership updated"
 
 # Create initramfs.cpio.gz
@@ -145,3 +141,7 @@ echo "Compressing initramfs.cpio to initramfs.cpio.gz"
 cd ${OUTDIR}
 gzip -f initramfs.cpio
 echo "Compression completed: ${OUTDIR}/initramfs.cpio.gz"
+
+echo "Adding the Image in outdir"
+cp ${OUTDIR}/linux-stable/arch/arm64/boot/Image ${OUTDIR}/Image
+echo "Kernel Image copied to ${OUTDIR}/Image"
