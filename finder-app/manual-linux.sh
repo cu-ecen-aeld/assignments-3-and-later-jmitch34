@@ -74,7 +74,7 @@ then
 git clone https://github.com/mirror/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
-    # TODO:  Configure busybox
+    # TODO:  Configure busybox...
     make distclean
     make defconfig
 else
