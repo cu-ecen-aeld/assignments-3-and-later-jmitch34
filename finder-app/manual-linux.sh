@@ -35,6 +35,21 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     git checkout ${KERNEL_VERSION}
 
     # TODO: Add your kernel build steps here
+    echo "CROSS_COMPILE is: ${CROSS_COMPILE}gcc"
+    echo "cleaning tree"
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
+    echo "setting config"
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
+    echo "building kernel"
+    set -x
+    set -e
+    set -u
+    make -j$(nproc) ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
+    echo "building modules"
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
+    echo "building DTBs"
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
+    echo "done with kernel build"
 fi
 
 echo "Adding the Image in outdir"
@@ -48,33 +63,83 @@ then
 fi
 
 # TODO: Create necessary base directories
+mkdir -p ${OUTDIR}/rootfs
+cd ${OUTDIR}/rootfs
+mkdir init bin etc dev proc sys lib home lib64 usr mnt opt sbin
+mkdir -p /lib/modules
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
 then
-git clone git://busybox.net/busybox.git
+git clone https://github.com/mirror/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
     # TODO:  Configure busybox
+    make distclean
+    make defconfig
 else
     cd busybox
 fi
 
-# TODO: Make and install busybox
+# Make and install busybox
+echo "Building BusyBox with ARCH=${ARCH}, CROSS_COMPILE=${CROSS_COMPILE}"
+make -j$(nproc) ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
+echo "BusyBox build completed"
 
-echo "Library dependencies"
-${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
-${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
+echo "Installing BusyBox to ${OUTDIR}/rootfs"
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs install
+echo "BusyBox installed successfully"
 
-# TODO: Add library dependencies to rootfs
+# Library dependencies
+echo "Checking program interpreter in BusyBox binary"
+${CROSS_COMPILE}readelf -a busybox | grep "program interpreter"
 
-# TODO: Make device nodes
+echo "Checking shared libraries required by BusyBox"
+${CROSS_COMPILE}readelf -a busybox | grep "Shared library"
 
-# TODO: Clean and build the writer utility
+# Add library dependencies to rootfs
+echo "Collecting library dependencies from toolchain sysroot"
+SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
+echo "SYSROOT determined as $SYSROOT"
 
-# TODO: Copy the finder related scripts and executables to the /home directory
-# on the target rootfs
+echo "Copying libs from ${SYSROOT}/lib to ${OUTDIR}/rootfs/lib"
+cp -a ${SYSROOT}/lib/* ${OUTDIR}/rootfs/lib/
 
-# TODO: Chown the root directory
+echo "Copying libs from ${SYSROOT}/lib64 to ${OUTDIR}/rootfs/lib64"
+cp -a ${SYSROOT}/lib64/* ${OUTDIR}/rootfs/lib64/
 
-# TODO: Create initramfs.cpio.gz
+# Make device nodes
+echo "Creating device nodes in ${OUTDIR}/rootfs/dev"
+sudo mknod -m 666 ${OUTDIR}/rootfs/dev/null c 1 3
+sudo mknod -m 600 ${OUTDIR}/rootfs/dev/console c 5 1
+echo "Device nodes created"
+
+# Clean and build the writer utility
+echo "Building writer utility in ${FINDER_APP_DIR}"
+cd ${FINDER_APP_DIR}
+make CROSS_COMPILE=${CROSS_COMPILE}
+echo "Writer utility build complete"
+
+# Copy finder-related scripts and executables
+echo "Copying finder-related files to ${OUTDIR}/rootfs/home/"
+mkdir -p ${OUTDIR}/rootfs/home
+cp -a writer finder-test.sh finder.sh conf/ ${OUTDIR}/rootfs/home/
+cp autorun-qemu.sh ${OUTDIR}/rootfs/home/
+echo "Finder files copied"
+
+# Chown the root directory
+echo "Taking ownership of ${OUTDIR}/rootfs with user $USER"
+sudo chown -R "$USER":"$USER" ${OUTDIR}/rootfs
+echo "Ownership updated"
+
+# Create initramfs.cpio.gz
+echo "Creating initramfs.cpio from ${OUTDIR}/rootfs"
+cd ${OUTDIR}/rootfs
+pwd
+find . | cpio -H newc -ov --owner="$USER":"$USER" > ${OUTDIR}/initramfs.cpio
+echo "initramfs.cpio created at ${OUTDIR}/initramfs.cpio"
+
+echo "Compressing initramfs.cpio to initramfs.cpio.gz"
+cd ${OUTDIR}
+gzip -f initramfs.cpio
+echo "Compression completed: ${OUTDIR}/initramfs.cpio.gz"
