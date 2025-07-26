@@ -57,7 +57,7 @@ cd "$OUTDIR"
 if [ -d "${OUTDIR}/rootfs" ]
 then
 	echo "Deleting rootfs directory at ${OUTDIR}/rootfs and starting over"
-    sudo rm  -rf ${OUTDIR}/rootfs
+    rm  -rf ${OUTDIR}/rootfs
 fi
 
 # TODO: Create necessary base directories
@@ -108,8 +108,8 @@ cp -a ${SYSROOT}/lib64/* ${OUTDIR}/rootfs/lib64/
 
 # Make device nodes
 echo "Creating device nodes in ${OUTDIR}/rootfs/dev"
-sudo mknod -m 666 ${OUTDIR}/rootfs/dev/null c 1 3
-sudo mknod -m 600 ${OUTDIR}/rootfs/dev/console c 5 1
+mknod -m 666 ${OUTDIR}/rootfs/dev/null c 1 3
+mknod -m 600 ${OUTDIR}/rootfs/dev/console c 5 1
 echo "Device nodes created"
 
 # Clean and build the writer utility
